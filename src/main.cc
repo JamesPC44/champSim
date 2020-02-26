@@ -863,6 +863,10 @@ int main(int argc, char** argv)
                 record_roi_stats(i, &ooo_cpu[i].L2C);
                 record_roi_stats(i, &uncore.LLC);
 
+                record_roi_stats(i, &ooo_cpu[i].ITLB);
+                record_roi_stats(i, &ooo_cpu[i].DTLB);
+                record_roi_stats(i, &ooo_cpu[i].STLB);
+
                 all_simulation_complete++;
             }
 
@@ -907,6 +911,11 @@ int main(int argc, char** argv)
         print_roi_stats(i, &ooo_cpu[i].L1D);
         print_roi_stats(i, &ooo_cpu[i].L1I);
         print_roi_stats(i, &ooo_cpu[i].L2C);
+
+	//Add printouts for TLB
+	print_roi_stats(i, &ooo_cpu[i].ITLB);
+	print_roi_stats(i, &ooo_cpu[i].DTLB);
+	print_roi_stats(i, &ooo_cpu[i].STLB);
 #endif
         print_roi_stats(i, &uncore.LLC);
         cout << "Major fault: " << major_fault[i] << " Minor fault: " << minor_fault[i] << endl;
