@@ -1,0 +1,8 @@
+#BSUB -J thisHurtsTheTLB     #Set the job name
+#BSUB -L /bin/bash           #Uses the bash login shell to initialize the job's execution environment.
+#BSUB -W 0:10                #Set the wall clock limit to 2hr
+#BSUB -n 1                   #Request 1 core
+#BSUB -R "span[ptile=1]"     #Request 1 core per node.
+#BSUB -R "rusage[mem=5000]"  #Request 5000MB per process (CPU) for the job
+#BSUB -M 5000                #Set the per process enforceable memory limit to 5000MB.
+#BSUB -o output.%J           #Send stdout and stderr to "Example1Out.[jobID]"
