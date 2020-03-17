@@ -7,8 +7,8 @@
 extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 
 // CACHE TYPE
-#define IS_ITLB 1
-#define IS_DTLB 0
+#define IS_ITLB 0
+#define IS_DTLB 1
 #define IS_STLB 2
 #define IS_L1I  3
 #define IS_L1D  4
