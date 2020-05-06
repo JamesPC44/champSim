@@ -302,7 +302,7 @@ uint64_t rotr64 (uint64_t n, unsigned int c)
     return (n>>c) | (n<<( (-c)&mask ));
 }
 
-int simulated_page_walker(uint32_t cpu, uint64_t vpage, int swap, uint64_t instr_id, uint64_t ip, int type){
+int simulated_page_walker(uint32_t cpu, uint64_t vpage, int swap, uint8_t is_code, uint64_t instr_id, uint64_t ip, int type){
 
 	// 4KB: LOG2_PAGE_SIZE == 12
 	// 2MB: LOG2_PAGE_SIZE == 21
@@ -405,35 +405,67 @@ int simulated_page_walker(uint32_t cpu, uint64_t vpage, int swap, uint64_t instr
 			PACKET search_packet;
 			search_packet.address = pml42s;
 
-			//search L1 cache 
-			set = ooo_cpu[cpu].L1D.get_set(pml42s);
-			way_read = ooo_cpu[cpu].L1D.check_hit(&search_packet);
+			//search L1 cache
+			if(is_code){
+				set = ooo_cpu[cpu].L1I.get_set(pml42s);
+				way_read = ooo_cpu[cpu].L1I.check_hit(&search_packet);
+			}
+			else{
+				set = ooo_cpu[cpu].L1D.get_set(pml42s);
+				way_read = ooo_cpu[cpu].L1D.check_hit(&search_packet);
+			}
 			if(way_read >=0){
 				// L1 read hit 
-				ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1D.block[set][way_read].full_addr, ip, 0, type, 1);
-				ooo_cpu[cpu].L1D.block[set][way_read].used = 1;
+				if (is_code){
+					ooo_cpu[cpu].L1I.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1I.block[set][way_read].full_addr, ip, 0, type, 1);
+					ooo_cpu[cpu].L1I.block[set][way_read].used = 1;
+				}
+				else{
+					ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1D.block[set][way_read].full_addr, ip, 0, type, 1);
+					ooo_cpu[cpu].L1D.block[set][way_read].used = 1;
+				}
 				cstall += 4;
 			}
 			else{
 				// L1 read miss --> search L2
 				cstall += 4; // L1D miss 
 
-				// first fill it in L1 cache if you want to... this is a decision you have to make
-				way_fill = ooo_cpu[cpu].L1D.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1D.block[set], ip, pml42s, type);
-				ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_fill, pml42s, ip, 0, type, 0);
-
-				if (ooo_cpu[cpu].L1D.block[set][way_fill].valid == 0)
-					ooo_cpu[cpu].L1D.block[set][way_fill].valid = 1;
-
-				ooo_cpu[cpu].L1D.block[set][way_fill].dirty = 0;
-                ooo_cpu[cpu].L1D.block[set][way_fill].prefetch = 0;
-                ooo_cpu[cpu].L1D.block[set][way_fill].used = 0;
-
-                ooo_cpu[cpu].L1D.block[set][way_fill].tag = pml42s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].address = pml42s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].full_addr = pml42s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].data = 55; // random value (not used)
-                ooo_cpu[cpu].L1D.block[set][way_fill].cpu = cpu;
+				if (is_code){
+					// first fill it in L1 cache if you want to... this is a decision you have to make
+					way_fill = ooo_cpu[cpu].L1I.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1I.block[set], ip, pml42s, type);
+					ooo_cpu[cpu].L1I.update_replacement_state(cpu, set, way_fill, pml42s, ip, 0, type, 0);
+				
+					if (ooo_cpu[cpu].L1I.block[set][way_fill].valid == 0)
+						ooo_cpu[cpu].L1I.block[set][way_fill].valid = 1;
+				
+					ooo_cpu[cpu].L1I.block[set][way_fill].dirty = 0;
+					ooo_cpu[cpu].L1I.block[set][way_fill].prefetch = 0;
+					ooo_cpu[cpu].L1I.block[set][way_fill].used = 0;
+				
+					ooo_cpu[cpu].L1I.block[set][way_fill].tag = pml42s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].address = pml42s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].full_addr = pml42s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].data = 55; // random value (not used)
+					ooo_cpu[cpu].L1I.block[set][way_fill].cpu = cpu;
+				}
+				else{
+					// first fill it in L1 cache if you want to... this is a decision you have to make
+					way_fill = ooo_cpu[cpu].L1D.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1D.block[set], ip, pml42s, type);
+					ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_fill, pml42s, ip, 0, type, 0);
+				
+					if (ooo_cpu[cpu].L1D.block[set][way_fill].valid == 0)
+						ooo_cpu[cpu].L1D.block[set][way_fill].valid = 1;
+				
+					ooo_cpu[cpu].L1D.block[set][way_fill].dirty = 0;
+					ooo_cpu[cpu].L1D.block[set][way_fill].prefetch = 0;
+					ooo_cpu[cpu].L1D.block[set][way_fill].used = 0;
+				
+					ooo_cpu[cpu].L1D.block[set][way_fill].tag = pml42s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].address = pml42s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].full_addr = pml42s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].data = 55; // random value (not used)
+					ooo_cpu[cpu].L1D.block[set][way_fill].cpu = cpu;
+				}
 
 				// now search in L2
 				set = ooo_cpu[cpu].L2C.get_set(pml42s);
@@ -507,35 +539,67 @@ int simulated_page_walker(uint32_t cpu, uint64_t vpage, int swap, uint64_t instr
             PACKET search_packet;
             search_packet.address = pdp2s;
 
-            set = ooo_cpu[cpu].L1D.get_set(pdp2s);
-            way_read = ooo_cpu[cpu].L1D.check_hit(&search_packet);
+			if(is_code){
+				set = ooo_cpu[cpu].L1I.get_set(pdp2s);
+				way_read = ooo_cpu[cpu].L1I.check_hit(&search_packet);
+			}
+			else{
+				set = ooo_cpu[cpu].L1D.get_set(pdp2s);
+				way_read = ooo_cpu[cpu].L1D.check_hit(&search_packet);
+			}
             if(way_read >=0){
                 // L1 read hit 
-                ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1D.block[set][way_read].full_addr, ip, type, type, 1);
-                ooo_cpu[cpu].L1D.block[set][way_read].used = 1;
+				if (is_code){
+					ooo_cpu[cpu].L1I.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1D.block[set][way_read].full_addr, ip, type, type, 1);
+					ooo_cpu[cpu].L1I.block[set][way_read].used = 1;
+				}
+				else{
+					ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1D.block[set][way_read].full_addr, ip, type, type, 1);
+					ooo_cpu[cpu].L1D.block[set][way_read].used = 1;
+				}
                 cstall += 4;
             }
             else{
                 // L1 read miss --> search L2
                 cstall += 4; // L1D miss 
 
-                // first fill it in L1 cache if you want to... this is a decision you have to make
+				if (is_code){
+					// first fill it in L1 cache if you want to... this is a decision you have to make
+					way_fill = ooo_cpu[cpu].L1I.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1I.block[set], ip, pdp2s, type);
+					ooo_cpu[cpu].L1I.update_replacement_state(cpu, set, way_fill, pdp2s, ip, ooo_cpu[cpu].L1I.block[set][way_fill].full_addr, type, 0);
 
-                way_fill = ooo_cpu[cpu].L1D.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1D.block[set], ip, pdp2s, type);
-                ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_fill, pdp2s, ip, ooo_cpu[cpu].L1D.block[set][way_fill].full_addr, type, 0);
+					if (ooo_cpu[cpu].L1I.block[set][way_fill].valid == 0)
+						ooo_cpu[cpu].L1I.block[set][way_fill].valid = 1;
 
-                if (ooo_cpu[cpu].L1D.block[set][way_fill].valid == 0)
-                    ooo_cpu[cpu].L1D.block[set][way_fill].valid = 1;
+					ooo_cpu[cpu].L1I.block[set][way_fill].dirty = 0;
+					ooo_cpu[cpu].L1I.block[set][way_fill].prefetch = 0;
+					ooo_cpu[cpu].L1I.block[set][way_fill].used = 0;
+					
+					ooo_cpu[cpu].L1I.block[set][way_fill].tag = pdp2s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].address = pdp2s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].full_addr = pdp2s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].data = 55; // random value (not used)
+					ooo_cpu[cpu].L1I.block[set][way_fill].cpu = cpu;
+				}
+				else{
+					// first fill it in L1 cache if you want to... this is a decision you have to make
+					way_fill = ooo_cpu[cpu].L1D.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1D.block[set], ip, pdp2s, type);
+					ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_fill, pdp2s, ip, ooo_cpu[cpu].L1D.block[set][way_fill].full_addr, type, 0);
 
-                ooo_cpu[cpu].L1D.block[set][way_fill].dirty = 0;
-                ooo_cpu[cpu].L1D.block[set][way_fill].prefetch = 0;
-                ooo_cpu[cpu].L1D.block[set][way_fill].used = 0;
+					if (ooo_cpu[cpu].L1D.block[set][way_fill].valid == 0)
+						ooo_cpu[cpu].L1D.block[set][way_fill].valid = 1;
 
-                ooo_cpu[cpu].L1D.block[set][way_fill].tag = pdp2s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].address = pdp2s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].full_addr = pdp2s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].data = 55; // random value (not used)
-                ooo_cpu[cpu].L1D.block[set][way_fill].cpu = cpu;
+					ooo_cpu[cpu].L1D.block[set][way_fill].dirty = 0;
+					ooo_cpu[cpu].L1D.block[set][way_fill].prefetch = 0;
+					ooo_cpu[cpu].L1D.block[set][way_fill].used = 0;
+					
+					ooo_cpu[cpu].L1D.block[set][way_fill].tag = pdp2s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].address = pdp2s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].full_addr = pdp2s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].data = 55; // random value (not used)
+					ooo_cpu[cpu].L1D.block[set][way_fill].cpu = cpu;
+
+
 
                 // now search in L2
                 set = ooo_cpu[cpu].L2C.get_set(pdp2s);
@@ -566,6 +630,7 @@ int simulated_page_walker(uint32_t cpu, uint64_t vpage, int swap, uint64_t instr
                     ooo_cpu[cpu].L2C.block[set][way_fill].full_addr = pdp2s;
                     ooo_cpu[cpu].L2C.block[set][way_fill].data = 55; // random value (not used)
                     ooo_cpu[cpu].L2C.block[set][way_fill].cpu = cpu;
+				}
 
                     // now search in LLC
                     set = uncore.LLC.get_set(pdp2s);
@@ -604,40 +669,72 @@ int simulated_page_walker(uint32_t cpu, uint64_t vpage, int swap, uint64_t instr
             }
         }
 
+
         if((mmu_hit[2] == 0) && (LOG2_PAGE_SIZE==12)){
 			// PD MISS
             PACKET search_packet;
             search_packet.address = pd2s;
 
-            set = ooo_cpu[cpu].L1D.get_set(pd2s);
-            way_read = ooo_cpu[cpu].L1D.check_hit(&search_packet);
-            if(way_read >=0){
-                // L1 read hit
-                ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1D.block[set][way_read].full_addr, ip, type, type, 1);
-                ooo_cpu[cpu].L1D.block[set][way_read].used = 1;
+			if(is_code){
+				set = ooo_cpu[cpu].L1I.get_set(pd2s);
+				way_read = ooo_cpu[cpu].L1I.check_hit(&search_packet);
+			}
+			else{
+				set = ooo_cpu[cpu].L1D.get_set(pd2s);
+				way_read = ooo_cpu[cpu].L1D.check_hit(&search_packet);
+			}
+			if(way_read >=0){
+                // L1 read hit 
+				if (is_code){
+					ooo_cpu[cpu].L1I.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1D.block[set][way_read].full_addr, ip, type, type, 1);
+					ooo_cpu[cpu].L1I.block[set][way_read].used = 1;
+				}
+				else{
+					ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1D.block[set][way_read].full_addr, ip, type, type, 1);
+					ooo_cpu[cpu].L1D.block[set][way_read].used = 1;
+				}
                 cstall += 4;
             }
             else{
                 // L1 read miss --> search L2
                 cstall += 4; // L1D miss
 
-                // first fill it in L1 cache if you want to... this is a decision you have to make
-                way_fill = ooo_cpu[cpu].L1D.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1D.block[set], ip, pd2s, type);
-                ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_fill, pd2s, ip, ooo_cpu[cpu].L1D.block[set][way_fill].full_addr, type, 0);
+				if (is_code){
+					// first fill it in L1 cache if you want to... this is a decision you have to make
+					way_fill = ooo_cpu[cpu].L1I.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1I.block[set], ip, pd2s, type);
+					ooo_cpu[cpu].L1I.update_replacement_state(cpu, set, way_fill, pd2s, ip, ooo_cpu[cpu].L1I.block[set][way_fill].full_addr, type, 0);
 
-                if (ooo_cpu[cpu].L1D.block[set][way_fill].valid == 0)
-                    ooo_cpu[cpu].L1D.block[set][way_fill].valid = 1;
+					if (ooo_cpu[cpu].L1I.block[set][way_fill].valid == 0)
+						ooo_cpu[cpu].L1I.block[set][way_fill].valid = 1;
 
-                ooo_cpu[cpu].L1D.block[set][way_fill].dirty = 0;
-                ooo_cpu[cpu].L1D.block[set][way_fill].prefetch = 0;
-                ooo_cpu[cpu].L1D.block[set][way_fill].used = 0;
+					ooo_cpu[cpu].L1I.block[set][way_fill].dirty = 0;
+					ooo_cpu[cpu].L1I.block[set][way_fill].prefetch = 0;
+					ooo_cpu[cpu].L1I.block[set][way_fill].used = 0;
 
-                ooo_cpu[cpu].L1D.block[set][way_fill].tag = pd2s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].address = pd2s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].full_addr = pd2s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].data = 55; // random value (not used)
-                ooo_cpu[cpu].L1D.block[set][way_fill].cpu = cpu;
+					ooo_cpu[cpu].L1I.block[set][way_fill].tag = pd2s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].address = pd2s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].full_addr = pd2s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].data = 55; // random value (not used)
+					ooo_cpu[cpu].L1I.block[set][way_fill].cpu = cpu;
+				}
+				else {
+					// first fill it in L1 cache if you want to... this is a decision you have to make
+					way_fill = ooo_cpu[cpu].L1D.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1D.block[set], ip, pd2s, type);
+					ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_fill, pd2s, ip, ooo_cpu[cpu].L1D.block[set][way_fill].full_addr, type, 0);
 
+					if (ooo_cpu[cpu].L1D.block[set][way_fill].valid == 0)
+						ooo_cpu[cpu].L1D.block[set][way_fill].valid = 1;
+
+					ooo_cpu[cpu].L1D.block[set][way_fill].dirty = 0;
+					ooo_cpu[cpu].L1D.block[set][way_fill].prefetch = 0;
+					ooo_cpu[cpu].L1D.block[set][way_fill].used = 0;
+
+					ooo_cpu[cpu].L1D.block[set][way_fill].tag = pd2s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].address = pd2s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].full_addr = pd2s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].data = 55; // random value (not used)
+					ooo_cpu[cpu].L1D.block[set][way_fill].cpu = cpu;
+				}
                 // now search in L2
                 set = ooo_cpu[cpu].L2C.get_set(pd2s);
                 way_read = ooo_cpu[cpu].L2C.check_hit(&search_packet);
@@ -710,34 +807,66 @@ int simulated_page_walker(uint32_t cpu, uint64_t vpage, int swap, uint64_t instr
             PACKET search_packet;
             search_packet.address = pt2s;
 
-            set = ooo_cpu[cpu].L1D.get_set(pt2s);
-            way_read = ooo_cpu[cpu].L1D.check_hit(&search_packet);
+			if(is_code){
+				set = ooo_cpu[cpu].L1I.get_set(pt2s);
+				way_read = ooo_cpu[cpu].L1I.check_hit(&search_packet);
+			}
+			else{
+				set = ooo_cpu[cpu].L1D.get_set(pt2s);
+				way_read = ooo_cpu[cpu].L1D.check_hit(&search_packet);
+			}
             if(way_read >=0){
                 // L1 read hit 
-                ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1D.block[set][way_read].full_addr, ip, type, type, 1);
-                ooo_cpu[cpu].L1D.block[set][way_read].used = 1;
+				if (is_code){
+					ooo_cpu[cpu].L1I.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1I.block[set][way_read].full_addr, ip, type, type, 1);
+					ooo_cpu[cpu].L1I.block[set][way_read].used = 1;
+				}
+				else{
+					ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_read, ooo_cpu[cpu].L1D.block[set][way_read].full_addr, ip, type, type, 1);
+					ooo_cpu[cpu].L1D.block[set][way_read].used = 1;
+				}
                 cstall += 4;
             }
             else{
                 // L1 read miss --> search L2
                 cstall += 4; // L1D miss 
 
-                // first fill it in L1 cache if you want to... this is a decision you have to make
-                way_fill = ooo_cpu[cpu].L1D.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1D.block[set], ip, pt2s, type);
-                ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_fill, pt2s, ip, ooo_cpu[cpu].L1D.block[set][way_fill].full_addr, type, 0);
+				if (is_code){
+					// first fill it in L1 cache if you want to... this is a decision you have to make
+					way_fill = ooo_cpu[cpu].L1I.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1I.block[set], ip, pt2s, type);
+					ooo_cpu[cpu].L1I.update_replacement_state(cpu, set, way_fill, pt2s, ip, ooo_cpu[cpu].L1I.block[set][way_fill].full_addr, type, 0);
 
-                if (ooo_cpu[cpu].L1D.block[set][way_fill].valid == 0)
-                    ooo_cpu[cpu].L1D.block[set][way_fill].valid = 1;
+					if (ooo_cpu[cpu].L1I.block[set][way_fill].valid == 0)
+						ooo_cpu[cpu].L1I.block[set][way_fill].valid = 1;
 
-                ooo_cpu[cpu].L1D.block[set][way_fill].dirty = 0;
-                ooo_cpu[cpu].L1D.block[set][way_fill].prefetch = 0;
-                ooo_cpu[cpu].L1D.block[set][way_fill].used = 0;
+					ooo_cpu[cpu].L1I.block[set][way_fill].dirty = 0;
+					ooo_cpu[cpu].L1I.block[set][way_fill].prefetch = 0;
+					ooo_cpu[cpu].L1I.block[set][way_fill].used = 0;
 
-                ooo_cpu[cpu].L1D.block[set][way_fill].tag = pt2s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].address = pt2s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].full_addr = pt2s;
-                ooo_cpu[cpu].L1D.block[set][way_fill].data = 55; // random value (not used)
-                ooo_cpu[cpu].L1D.block[set][way_fill].cpu = cpu;
+					ooo_cpu[cpu].L1I.block[set][way_fill].tag = pt2s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].address = pt2s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].full_addr = pt2s;
+					ooo_cpu[cpu].L1I.block[set][way_fill].data = 55; // random value (not used)
+					ooo_cpu[cpu].L1I.block[set][way_fill].cpu = cpu;
+				}
+				else{
+					// first fill it in L1 cache if you want to... this is a decision you have to make
+					way_fill = ooo_cpu[cpu].L1D.find_victim(cpu, instr_id, set, ooo_cpu[cpu].L1D.block[set], ip, pt2s, type);
+					ooo_cpu[cpu].L1D.update_replacement_state(cpu, set, way_fill, pt2s, ip, ooo_cpu[cpu].L1D.block[set][way_fill].full_addr, type, 0);
+
+					if (ooo_cpu[cpu].L1D.block[set][way_fill].valid == 0)
+						ooo_cpu[cpu].L1D.block[set][way_fill].valid = 1;
+
+					ooo_cpu[cpu].L1D.block[set][way_fill].dirty = 0;
+					ooo_cpu[cpu].L1D.block[set][way_fill].prefetch = 0;
+					ooo_cpu[cpu].L1D.block[set][way_fill].used = 0;
+
+					ooo_cpu[cpu].L1D.block[set][way_fill].tag = pt2s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].address = pt2s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].full_addr = pt2s;
+					ooo_cpu[cpu].L1D.block[set][way_fill].data = 55; // random value (not used)
+					ooo_cpu[cpu].L1D.block[set][way_fill].cpu = cpu;
+				}
 
                 // now search in L2
                 set = ooo_cpu[cpu].L2C.get_set(pt2s);
