@@ -21,6 +21,7 @@ time_t start_time;
 
 // PAGE TABLE
 uint32_t PAGE_TABLE_LATENCY = 0, SWAP_LATENCY = 0;
+bool USE_PAGE_WALKER = 0;
 queue <uint64_t > page_queue;
 map <uint64_t, uint64_t> page_table, inverse_table, recent_page, unique_cl[NUM_CPUS];
 uint64_t previous_ppage, num_adjacent_page, num_cl[NUM_CPUS], allocated_pages, num_page[NUM_CPUS], minor_fault[NUM_CPUS], major_fault[NUM_CPUS];
@@ -180,10 +181,21 @@ void finish_warmup()
 char* s = getenv("CS_PAGE_TABLE_LATENCY");
 if(!s) {
     PAGE_TABLE_LATENCY = 100;
+	printf("Page Table latency unchanged at %d\n", PAGE_TABLE_LATENCY);
 }
 else {
 	sscanf(s, "%d", &PAGE_TABLE_LATENCY);
+	printf("Page Table latency changed to %d\n", PAGE_TABLE_LATENCY);
 }
+s = getenv("CS_DO_PAGE_WALK");
+if(s) {
+	USE_PAGE_WALKER = 1;
+	printf("Using Page Walker\n");
+}
+else{
+	printf("Not using Page Walker\n");
+}
+
     SWAP_LATENCY = 100000;
 
     cout << endl;
@@ -1116,8 +1128,7 @@ uint64_t va_to_pa(uint32_t cpu, uint64_t instr_id, uint64_t va, uint64_t unique_
 	if (swap)
 	  stall_cycle[cpu] = current_core_cycle[cpu] + SWAP_LATENCY;
 	else {
-		char* s = getenv("CS_DO_PAGE_WALK");
-		if (s){
+		if (USE_PAGE_WALKER){
 			stall_cycle[cpu] = current_core_cycle[cpu] + simulated_page_walker(cpu, vpage, swap, is_code, instr_id, ip, type);
 		}
 		else {
