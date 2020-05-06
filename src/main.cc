@@ -177,7 +177,13 @@ void finish_warmup()
     SCHEDULING_LATENCY = 0;
     EXEC_LATENCY = 0;
     DECODE_LATENCY = 2;
+char* s = getenv("CS_PAGE_TABLE_LATENCY");
+if(!s) {
     PAGE_TABLE_LATENCY = 100;
+}
+else {
+	sscanf(s, "%d", &PAGE_TABLE_LATENCY);
+}
     SWAP_LATENCY = 100000;
 
     cout << endl;
@@ -980,9 +986,15 @@ uint64_t va_to_pa(uint32_t cpu, uint64_t instr_id, uint64_t va, uint64_t unique_
 	// if it's data, pay these penalties
 	if (swap)
 	  stall_cycle[cpu] = current_core_cycle[cpu] + SWAP_LATENCY;
-	else
-	  //stall_cycle[cpu] = current_core_cycle[cpu] + PAGE_TABLE_LATENCY;
-	  stall_cycle[cpu] = current_core_cycle[cpu] + simulated_page_walker(cpu, vpage, swap, instr_id, ip, type);
+	else {
+		char* s = getenv("CS_DO_PAGE_WALK");
+		if (s){
+			stall_cycle[cpu] = current_core_cycle[cpu] + simulated_page_walker(cpu, vpage, swap, is_code, instr_id, ip, type);
+		}
+		else {
+			stall_cycle[cpu] = current_core_cycle[cpu] + PAGE_TABLE_LATENCY;
+		}
+	}
       }
 
     //cout << "cpu: " << cpu << " allocated unique_vpage: " << hex << unique_vpage << " to ppage: " << ppage << dec << endl;
