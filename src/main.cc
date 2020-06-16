@@ -1146,6 +1146,16 @@ uint64_t va_to_pa(uint32_t cpu, uint64_t instr_id, uint64_t va, uint64_t unique_
     return pa;
 }
 
+void cpu_l1i_prefetcher_cache_operate(uint32_t cpu_num, uint64_t v_addr, uint8_t cache_hit, uint8_t prefetch_hit)
+{
+  ooo_cpu[cpu_num].l1i_prefetcher_cache_operate(v_addr, cache_hit, prefetch_hit);
+}
+
+void cpu_l1i_prefetcher_cache_fill(uint32_t cpu_num, uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr)
+{
+  ooo_cpu[cpu_num].l1i_prefetcher_cache_fill(addr, set, way, prefetch, evicted_addr);
+}
+
 int main(int argc, char** argv)
 {
 	// interrupt signal hanlder
@@ -1247,29 +1257,51 @@ int main(int argc, char** argv)
     int count_traces = 0;
     cout << endl;
     for (int i=0; i<argc; i++) {
-        if (found_traces) {
+        if (found_traces)
+        {
             printf("CPU %d runs %s\n", count_traces, argv[i]);
 
             sprintf(ooo_cpu[count_traces].trace_string, "%s", argv[i]);
 
-            char *full_name = ooo_cpu[count_traces].trace_string,
-                 *last_dot = strrchr(ooo_cpu[count_traces].trace_string, '.');
+            std::string full_name(argv[i]);
+            std::string last_dot = full_name.substr(full_name.find_last_of("."));
 
-			ifstream test_file(full_name);
-			if(!test_file.good()){
-				printf("TRACE FILE DOES NOT EXIST\n");
-				assert(false);
-			}
-				
+            std::string fmtstr;
+            std::string decomp_program;
+            if (full_name.substr(0,4) == "http")
+            {
+                // Check file exists
+                char testfile_command[4096];
+                sprintf(testfile_command, "wget -q --spider %s", argv[i]);
+                FILE *testfile = popen(testfile_command, "r");
+                if (pclose(testfile))
+                {
+                    std::cerr << "TRACE FILE NOT FOUND" << std::endl;
+                    assert(0);
+                }
+                fmtstr = "wget -qO- %2$s | %1$s -dc";
+            }
+            else
+            {
+                std::ifstream testfile(argv[i]);
+                if (!testfile.good())
+                {
+                    std::cerr << "TRACE FILE NOT FOUND" << std::endl;
+                    assert(0);
+                }
+                fmtstr = "%1$s -dc %2$s";
+            }
 
-            if (full_name[last_dot - full_name + 1] == 'g') // gzip format
-                sprintf(ooo_cpu[count_traces].gunzip_command, "gunzip -c %s", argv[i]);
-            else if (full_name[last_dot - full_name + 1] == 'x') // xz
-                sprintf(ooo_cpu[count_traces].gunzip_command, "xz -dc %s", argv[i]);
+            if (last_dot[1] == 'g') // gzip format
+                decomp_program = "gzip";
+            else if (last_dot[1] == 'x') // xz
+                decomp_program = "xz";
             else {
-                cout << "ChampSim does not support traces other than gz or xz compression!" << endl; 
+                std::cout << "ChampSim does not support traces other than gz or xz compression!" << std::endl;
                 assert(0);
             }
+
+            sprintf(ooo_cpu[count_traces].gunzip_command, fmtstr.c_str(), decomp_program.c_str(), argv[i]);
 
             char *pch[100];
             int count_str = 0;
@@ -1361,6 +1393,8 @@ int main(int argc, char** argv)
         ooo_cpu[i].L1I.fill_level = FILL_L1;
         ooo_cpu[i].L1I.lower_level = &ooo_cpu[i].L2C; 
         ooo_cpu[i].l1i_prefetcher_initialize();
+	ooo_cpu[i].L1I.l1i_prefetcher_cache_operate = cpu_l1i_prefetcher_cache_operate;
+	ooo_cpu[i].L1I.l1i_prefetcher_cache_fill = cpu_l1i_prefetcher_cache_fill;
 
         ooo_cpu[i].L1D.cpu = i;
         ooo_cpu[i].L1D.cache_type = IS_L1D;
@@ -1560,8 +1594,9 @@ int main(int argc, char** argv)
             print_sim_stats(i, &ooo_cpu[i].L1D);
             print_sim_stats(i, &ooo_cpu[i].L1I);
             print_sim_stats(i, &ooo_cpu[i].L2C);
+	    ooo_cpu[i].l1i_prefetcher_final_stats();
             ooo_cpu[i].L1D.l1d_prefetcher_final_stats();
-            ooo_cpu[i].L2C.l2c_prefetcher_final_stats();
+	    ooo_cpu[i].L2C.l2c_prefetcher_final_stats();
 #endif
             print_sim_stats(i, &uncore.LLC);
         }
@@ -1587,6 +1622,7 @@ int main(int argc, char** argv)
     }
 
     for (uint32_t i=0; i<NUM_CPUS; i++) {
+        ooo_cpu[i].l1i_prefetcher_final_stats();
         ooo_cpu[i].L1D.l1d_prefetcher_final_stats();
         ooo_cpu[i].L2C.l2c_prefetcher_final_stats();
     }
