@@ -178,15 +178,19 @@ void finish_warmup()
     SCHEDULING_LATENCY = 0;
     EXEC_LATENCY = 0;
     DECODE_LATENCY = 2;
+// Runtime PAGE_TABLE_LATENCY
+// if environment var is defined, set to that value
 char* s = getenv("CS_PAGE_TABLE_LATENCY");
 if(!s) {
     PAGE_TABLE_LATENCY = 100;
-	printf("Page Table latency unchanged at %d\n", PAGE_TABLE_LATENCY);
+	printf("Page Table latency set to default of %d\n", PAGE_TABLE_LATENCY);
 }
 else {
 	sscanf(s, "%d", &PAGE_TABLE_LATENCY);
-	printf("Page Table latency changed to %d\n", PAGE_TABLE_LATENCY);
+	printf("Page Table latency set to %d\n", PAGE_TABLE_LATENCY);
 }
+//use real page walker, not set value
+//can set to any non-empty string
 s = getenv("CS_DO_PAGE_WALK");
 if(s) {
 	USE_PAGE_WALKER = 1;

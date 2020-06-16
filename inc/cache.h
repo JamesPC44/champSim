@@ -250,6 +250,12 @@ int  search_pml4(uint64_t address), search_pdp(uint64_t address), search_pd(uint
 /* functions for storing/updating entries in the page walk caches */
 void update_pml4(uint64_t timer, uint64_t address), update_pdp(uint64_t timer, uint64_t address), update_pd(uint64_t timer, uint64_t address);
 /* page walker */
+
+/* chirp */
+
+
+/* chirp */
+
 };
 
 #endif
