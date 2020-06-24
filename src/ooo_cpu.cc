@@ -798,7 +798,7 @@ void O3_CPU::decode_and_dispatch()
     }
 }
 
-int O3_CPU::prefetch_code_line(uint64_t pf_v_addr)
+int O3_CPU::prefetch_code_line(uint64_t ip, uint64_t pf_v_addr)
 {
   if(pf_v_addr == 0)
     {
