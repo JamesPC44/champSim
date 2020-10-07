@@ -29,6 +29,10 @@ class BLOCK {
     // replacement state
     uint32_t lru;
 
+	//chirp
+	uint16_t chirp_signature;
+	bool chirp_is_pred_dead;
+
     BLOCK() {
         valid = 0;
         prefetch = 0;
@@ -48,6 +52,9 @@ class BLOCK {
         instr_id = 0;
 
         lru = 0;
+
+		chirp_signature = 0;
+		chirp_is_pred_dead = false;
     };
 };
 

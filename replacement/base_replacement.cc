@@ -56,6 +56,35 @@ uint32_t CACHE::lru_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const 
     return way;
 }
 
+
+uint32_t CACHE::chirp_lru_victim(uint32_t set)
+{
+    uint32_t way = 0;
+
+    // fill invalid line first
+    for (way=0; way<NUM_WAY; way++) {
+        if (block[set][way].valid == false) {
+            break;
+        }
+    }
+
+    // LRU victim
+    if (way == NUM_WAY) {
+        for (way=0; way<NUM_WAY; way++) {
+            if (block[set][way].lru == NUM_WAY-1) {
+                break;
+            }
+        }
+    }
+
+    if (way == NUM_WAY) {
+        cerr << "[" << NAME << "] " << __func__ << " no victim! set: " << set << endl;
+        assert(0);
+    }
+
+    return way;
+}
+
 void CACHE::lru_update(uint32_t set, uint32_t way)
 {
     // update lru replacement state

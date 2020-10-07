@@ -1634,6 +1634,31 @@ int main(int argc, char** argv)
     print_dram_stats();
     print_branch_stats();
 #endif
-
+printf("chirp misses: %lu\n", ooo_cpu[0].STLB.CHIRP_MISS);
+//printf("predtable:\n");
+//	for (int i=0; i < 256; i++) {
+//		printf("%lu\n", ooo_cpu[0].STLB.predTable[i]);
+//	}
+//printf("block sigs:\n");
+//	for (int i=0; i<128; i++) {
+//		for(int j=0; j<8; j++) {
+//			printf("%16lX\n", ooo_cpu[0].STLB.block[i][j].chirp_signature);
+//		}
+//	}
+//printf("v bit:\n");
+//	for (int i=0; i<128; i++) {
+//		for(int j=0; j<8; j++) {
+//			printf("%d\n", ooo_cpu[0].STLB.block[i][j].valid);
+//		}
+//	}
+//printf("pred bit:\n");
+//	for (int i=0; i<128; i++) {
+//		for(int j=0; j<8; j++) {
+//			printf("%d\n", ooo_cpu[0].STLB.block[i][j].chirp_is_pred_dead);
+//		}
+//	}
+//printf("last set:\n");
+//printf("%lu\n", ooo_cpu[0].STLB.LAST_SET);
     return 0;
 }
+

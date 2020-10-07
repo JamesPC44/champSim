@@ -151,6 +151,9 @@ void CACHE::handle_fill()
             if (cache_type == IS_LLC) {
                 llc_update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, block[set][way].full_addr, MSHR.entry[mshr_index].type, 0);
             }
+			//else if(cache_type == IS_STLB) {
+			//	accessTLB(MSHR.entry[mshr_index]);
+			//}
             else
                 update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, block[set][way].full_addr, MSHR.entry[mshr_index].type, 0);
 
@@ -251,6 +254,9 @@ void CACHE::handle_writeback()
                 llc_update_replacement_state(writeback_cpu, set, way, block[set][way].full_addr, WQ.entry[index].ip, 0, WQ.entry[index].type, 1);
 
             }
+			else if(cache_type == IS_STLB){
+				accessTLB(WQ.entry[index]);
+			}
             else
                 update_replacement_state(writeback_cpu, set, way, block[set][way].full_addr, WQ.entry[index].ip, 0, WQ.entry[index].type, 1);
 
@@ -265,8 +271,8 @@ void CACHE::handle_writeback()
                 WQ.entry[index].instruction_pa = block[set][way].data;
             else if (cache_type == IS_DTLB)
                 WQ.entry[index].data_pa = block[set][way].data;
-            else if (cache_type == IS_STLB)
-                WQ.entry[index].data = block[set][way].data;
+            //else if (cache_type == IS_STLB)
+            //    WQ.entry[index].data = block[set][way].data;
 
             // check fill level
             if (WQ.entry[index].fill_level < fill_level) {
@@ -331,6 +337,9 @@ void CACHE::handle_writeback()
 			  lower_level->add_rq(&WQ.entry[index]);
 			}
 		    }
+		  else if(cache_type == IS_STLB) {
+		    	accessTLB(WQ.entry[index]);
+		  }
 		  else
 		    {
 		      // add it to mshr (RFO miss)
@@ -561,7 +570,6 @@ void CACHE::handle_read()
                     if (PROCESSED.occupancy < PROCESSED.SIZE)
                         PROCESSED.add_queue(&RQ.entry[index]);
                 }
-                //else if (cache_type == IS_L1D) {
                 else if ((cache_type == IS_L1D) && (RQ.entry[index].type != PREFETCH)) {
                     if (PROCESSED.occupancy < PROCESSED.SIZE)
                         PROCESSED.add_queue(&RQ.entry[index]);
@@ -588,6 +596,9 @@ void CACHE::handle_read()
                     llc_update_replacement_state(read_cpu, set, way, block[set][way].full_addr, RQ.entry[index].ip, 0, RQ.entry[index].type, 1);
 
                 }
+				else if(cache_type == IS_STLB) {
+					accessTLB(RQ.entry[index]);
+				}
                 else
                     update_replacement_state(read_cpu, set, way, block[set][way].full_addr, RQ.entry[index].ip, 0, RQ.entry[index].type, 1);
 
@@ -643,6 +654,13 @@ void CACHE::handle_read()
                 // check mshr
                 uint8_t miss_handled = 1;
                 int mshr_index = check_mshr(&RQ.entry[index]);
+				if(cache_type == IS_STLB) {
+					accessTLB(RQ.entry[index]);
+					//index ix 0-31
+					//RQ is 32
+					//only aTLB segs
+					//cannot print inside aTLB
+				}
 
 		if(mshr_index == -2)
 		  {
@@ -825,7 +843,8 @@ void CACHE::handle_read()
 	  {
 	    return;
 	  }
-    }
+	}
+
 }
 
 void CACHE::handle_prefetch()
@@ -853,8 +872,13 @@ void CACHE::handle_prefetch()
                     llc_update_replacement_state(prefetch_cpu, set, way, block[set][way].full_addr, PQ.entry[index].ip, 0, PQ.entry[index].type, 1);
 
                 }
-                else
+				else if(cache_type == IS_STLB){
+					accessTLB(PQ.entry[index]);
+				}
+
+                else {
                     update_replacement_state(prefetch_cpu, set, way, block[set][way].full_addr, PQ.entry[index].ip, 0, PQ.entry[index].type, 1);
+				}
 
                 // COLLECT STATS
                 sim_hit[prefetch_cpu][PQ.entry[index].type]++;
@@ -946,6 +970,10 @@ void CACHE::handle_prefetch()
 				  PQ.entry[index].pf_metadata = llc_prefetcher_operate(PQ.entry[index].address<<LOG2_BLOCK_SIZE, PQ.entry[index].ip, 0, PREFETCH, PQ.entry[index].pf_metadata);
 				  cpu = 0;
 				}
+				  else if(cache_type == IS_STLB) {
+					accessTLB(PQ.entry[index]);
+				  }
+					
 			    }
 			  
 			  // add it to MSHRs if this prefetch miss will be filled to this cache level
@@ -1842,4 +1870,110 @@ void CACHE::update_pd(uint64_t timer, uint64_t address){
 
     pd[victim[0]][victim[1]] = address;
     pd_lru[victim[0]][victim[1]] = timer;
+}
+
+////////////////////////////////////////////chirp//////////////////////////////
+uint64_t CACHE::update_hist(uint64_t va, uint64_t hist, uint64_t shift, uint64_t mask){
+	hist <<= shift;
+	hist |= (va & mask);
+	return hist;
+}
+
+bool CACHE::predict (uint32_t counter, uint32_t threshold) {
+	return counter > threshold;
+}
+
+uint32_t CACHE::victim_entry(uint64_t set) {//cpu, instr_id, full_addr,
+	BLOCK entry;
+//	printf("%d", NUM_WAY);
+	for(uint32_t i =0; i < NUM_WAY ;  i++) {
+		entry = block[set][i];
+		if(entry.chirp_is_pred_dead){
+//			printf("%d\n/",i);
+			return i;
+		}
+	}
+//	printf("no dead found\n");
+	return chirp_lru_victim(set);
+}
+
+void CACHE::update_pred_table(int index, bool dead) {
+	if (dead){
+		if(predTable[index]+1 <= PRED_TABLE_MAX){
+			predTable[index]++;
+		}
+	}
+	else{
+		if(predTable[index] > 0){
+			predTable[index]--;
+		}
+	}
+}
+
+
+uint64_t CACHE::mix(uint64_t a, uint64_t b, uint64_t c) {
+	a -= b; a -= c; a ^= (c>>13);
+	b -= c; b -= a; b ^= (a<<8);
+	c -= a; c -= b; c ^= (b>>13);
+	a -= b; a -= c; a ^= (c>>12);
+	b -= c; b -= a; b ^= (a<<16);
+	c -= a; c -= b; c ^= (b>>5);
+	a -= b; a -= c; a ^= (c>>3);
+	b -= c; b -= a; b ^= (a<<10);
+	c -= a; c -= b; c ^= (b>>15);
+	return c;
+}
+uint64_t CACHE::hash(uint64_t x) {
+	//use Samira's mix function with special values to determine hash
+	return mix(0xc001d00d, 0xfade2b1c, x) + mix(0xfeedface, 0xdeadb10c, x);
+}
+
+void CACHE::accessTLB(PACKET packet) {
+	uint64_t va      = packet.address;
+	uint8_t instType = packet.type;
+	uint64_t set     = get_set(va);
+	int32_t way      = check_hit(&packet);
+	uint64_t sign    = (va >>2)^PATH_HIST^UNCOND_BRANCH_HIST^COND_BRANCH_HIST;
+	uint64_t index   = hash(sign) % HASH_MODULUS;
+	uint64_t cntrNew = predTable[index];
+	BLOCK* entry;
+
+	uint64_t temp;
+
+
+	if(way == -1) {//miss
+		CHIRP_MISS++;
+//printf("miss\n");
+		entry = &block[set][victim_entry(set)];//first dead found, else lru
+		if(!entry->chirp_is_pred_dead){
+			index = hash(entry->chirp_signature) % HASH_MODULUS;
+			update_pred_table(index, true);
+//			printf("upt:t:%d\t", index);
+		}else{}
+	}
+	else{
+		entry = &block[set][way];
+//		printf("sign: %16lX\t", entry->chirp_signature);
+		if (LAST_SET != set) {
+			temp = hash(entry->chirp_signature);
+			index = temp % HASH_MODULUS;
+			update_pred_table(index, false);
+//			printf("upt:f:%d\t", index);
+			entry->chirp_is_pred_dead = predict(cntrNew, DEAD_THRESH);
+//			printf("cntr:%lu\t", cntrNew);
+//			printf("hash:%16lX\t", temp);
+		}
+	lru_update(set, way);
+	}
+//	printf("index: %16lX\n", index);
+	entry->chirp_signature = sign;
+	LAST_SET = set;
+	update_hist(va, PATH_HIST, HIST_SHIFT_VALUE, HIST_MASK);
+//	lru_update(set, way);
+	if(instType == BRANCH_CONDITIONAL){
+		update_hist(va, COND_BRANCH_HIST, BRANCH_SHIFT_VALUE, BRANCH_MASK);
+	}
+	else{
+		update_hist(va, UNCOND_BRANCH_HIST, BRANCH_SHIFT_VALUE, BRANCH_MASK);
+	}
 }

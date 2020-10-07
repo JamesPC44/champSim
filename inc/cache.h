@@ -36,8 +36,8 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define IS_LLC  6
 
 // INSTRUCTION TLB
-#define ITLB_SET 16
-#define ITLB_WAY 4
+#define ITLB_SET 8 //16
+#define ITLB_WAY 8 //4
 #define ITLB_RQ_SIZE 16
 #define ITLB_WQ_SIZE 16
 #define ITLB_PQ_SIZE 0
@@ -45,8 +45,8 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define ITLB_LATENCY 1
 
 // DATA TLB
-#define DTLB_SET 16
-#define DTLB_WAY 4
+#define DTLB_SET 8 //16
+#define DTLB_WAY 8 //4
 #define DTLB_RQ_SIZE 16
 #define DTLB_WQ_SIZE 16
 #define DTLB_PQ_SIZE 0
@@ -55,7 +55,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 
 // SECOND LEVEL TLB
 #define STLB_SET 128
-#define STLB_WAY 12
+#define STLB_WAY 8 //12
 #define STLB_RQ_SIZE 32
 #define STLB_WQ_SIZE 32
 #define STLB_PQ_SIZE 0
@@ -63,40 +63,52 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define STLB_LATENCY 8
 
 // L1 INSTRUCTION CACHE
-#define L1I_SET 64
+#define L1I_SET 1024 //64
 #define L1I_WAY 8
 #define L1I_RQ_SIZE 64
-#define L1I_WQ_SIZE 64 
+#define L1I_WQ_SIZE 64
 #define L1I_PQ_SIZE 32
 #define L1I_MSHR_SIZE 8
 #define L1I_LATENCY 4
 
 // L1 DATA CACHE
-#define L1D_SET 64
-#define L1D_WAY 12
+#define L1D_SET 1024 //64
+#define L1D_WAY 8 //12
 #define L1D_RQ_SIZE 64
 #define L1D_WQ_SIZE 64 
 #define L1D_PQ_SIZE 8
 #define L1D_MSHR_SIZE 16
-#define L1D_LATENCY 5 
+#define L1D_LATENCY 4 
 
 // L2 CACHE
-#define L2C_SET 1024
-#define L2C_WAY 8
+#define L2C_SET 2048 //1024
+#define L2C_WAY 16 //8
 #define L2C_RQ_SIZE 32
 #define L2C_WQ_SIZE 32
 #define L2C_PQ_SIZE 16
 #define L2C_MSHR_SIZE 32
-#define L2C_LATENCY 10  // 4/5 (L1I or L1D) + 10 = 14/15 cycles
+#define L2C_LATENCY 12 //10  // 4/5 (L1I or L1D) + 10 = 14/15 cycles
 
 // LAST LEVEL CACHE
-#define LLC_SET NUM_CPUS*2048
+#define LLC_SET NUM_CPUS*65536
 #define LLC_WAY 16
 #define LLC_RQ_SIZE NUM_CPUS*L2C_MSHR_SIZE //48
 #define LLC_WQ_SIZE NUM_CPUS*L2C_MSHR_SIZE //48
 #define LLC_PQ_SIZE NUM_CPUS*32
 #define LLC_MSHR_SIZE NUM_CPUS*64
-#define LLC_LATENCY 20  // 4/5 (L1I or L1D) + 10 + 20 = 34/35 cycles
+#define LLC_LATENCY 42 //20  // 4/5 (L1I or L1D) + 10 + 20 = 34/35 cycles
+
+
+/* chirp */
+#define HIST_SHIFT_VALUE 4
+#define BRANCH_SHIFT_VALUE 8
+#define HIST_MASK (uint64_t)6
+#define BRANCH_MASK (uint64_t)2040
+#define HASH_MODULUS (1<<8)
+#define DEAD_THRESH 4
+#define PRED_TABLE_MAX 3
+/* chirp */
+
 
 class CACHE : public MEMORY {
   public:
@@ -133,6 +145,14 @@ class CACHE : public MEMORY {
              roi_miss[NUM_CPUS][NUM_TYPES];
 
     uint64_t total_miss_latency;
+
+	//chirp
+	uint64_t PATH_HIST;
+	uint64_t COND_BRANCH_HIST;
+	uint64_t UNCOND_BRANCH_HIST;
+	uint64_t LAST_SET;
+	uint64_t* predTable;
+	uint64_t CHIRP_MISS;
     
     // constructor
     CACHE(string v1, uint32_t v2, int v3, uint32_t v4, uint32_t v5, uint32_t v6, uint32_t v7, uint32_t v8) 
@@ -178,6 +198,17 @@ class CACHE : public MEMORY {
         pf_useful = 0;
         pf_useless = 0;
         pf_fill = 0;
+
+		/* chirp */
+		PATH_HIST = 0;
+		COND_BRANCH_HIST = 0;
+		UNCOND_BRANCH_HIST = 0;
+		CHIRP_MISS = 0;
+		LAST_SET = 18446744073709551615; //2^64 -1
+		//having 2^64 sets is unsupported
+
+		predTable = (uint64_t*)calloc(HASH_MODULUS, sizeof(uint64_t));
+		/* chirp */
     };
 
     // destructor
@@ -185,6 +216,7 @@ class CACHE : public MEMORY {
         for (uint32_t i=0; i<NUM_SET; i++)
             delete[] block[i];
         delete[] block;
+		free(predTable);
     };
 
     // functions
@@ -245,6 +277,19 @@ class CACHE : public MEMORY {
              llc_find_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type),
              lru_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type);
 
+
+
+/* chirp */
+	uint32_t chirp_lru_victim(uint32_t set);
+	uint64_t hash(uint64_t x);
+	uint64_t mix(uint64_t a, uint64_t b, uint64_t c);
+	void accessTLB(PACKET packet);
+	void update_pred_table(int index, bool dead);
+	uint32_t victim_entry(uint64_t set);
+	bool predict (uint32_t counter, uint32_t threshold);
+	uint64_t update_hist(uint64_t va, uint64_t hist, uint64_t shift, uint64_t mask);
+/* chirp */
+
 /* page walker */
 /* functions for searching in the page walk caches for possible hits */
 int  search_pml4(uint64_t address), search_pdp(uint64_t address), search_pd(uint64_t address);
@@ -253,10 +298,9 @@ int  search_pml4(uint64_t address), search_pdp(uint64_t address), search_pd(uint
 void update_pml4(uint64_t timer, uint64_t address), update_pdp(uint64_t timer, uint64_t address), update_pd(uint64_t timer, uint64_t address);
 /* page walker */
 
-/* chirp */
 
 
-/* chirp */
+
 
 };
 
