@@ -104,8 +104,8 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define BRANCH_SHIFT_VALUE 8
 #define HIST_MASK (uint64_t)6
 #define BRANCH_MASK (uint64_t)2040
-#define HASH_MODULUS (1<<8)
-#define DEAD_THRESH 4
+#define HASH_MODULUS (1<<15)//(1<<8)
+#define DEAD_THRESH 0
 #define PRED_TABLE_MAX 3
 /* chirp */
 

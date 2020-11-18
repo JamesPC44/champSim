@@ -29,6 +29,9 @@ void CACHE::handle_fill()
         if (cache_type == IS_LLC) {
             way = llc_find_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set, block[set], MSHR.entry[mshr_index].ip, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].type);
         }
+	else if (cache_type == IS_STLB) {
+		way = victim_entry(set);
+	}
         else
             way = find_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set, block[set], MSHR.entry[mshr_index].ip, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].type);
 
@@ -1890,6 +1893,7 @@ uint32_t CACHE::victim_entry(uint64_t set) {//cpu, instr_id, full_addr,
 		entry = block[set][i];
 		if(entry.chirp_is_pred_dead){
 //			printf("%d\n/",i);
+			//printf("found dead\n");
 			return i;
 		}
 	}

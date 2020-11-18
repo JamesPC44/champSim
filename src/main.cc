@@ -224,6 +224,9 @@ else{
         reset_cache_stats(i, &ooo_cpu[i].L1D);
         reset_cache_stats(i, &ooo_cpu[i].L2C);
         reset_cache_stats(i, &uncore.LLC);
+/*chirp*/
+        reset_cache_stats(i, &ooo_cpu[i].STLB);
+	ooo_cpu[0].STLB.CHIRP_MISS = 0;
     }
     cout << endl;
 
@@ -245,6 +248,8 @@ else{
         ooo_cpu[i].L2C.LATENCY  = L2C_LATENCY;
     }
     uncore.LLC.LATENCY = LLC_LATENCY;
+
+
 }
 
 void print_deadlock(uint32_t i)
@@ -1636,7 +1641,7 @@ int main(int argc, char** argv)
 #endif
 printf("chirp misses: %lu\n", ooo_cpu[0].STLB.CHIRP_MISS);
 //printf("predtable:\n");
-//	for (int i=0; i < 256; i++) {
+//	for (int i=0; i <32768 ; i++) {
 //		printf("%lu\n", ooo_cpu[0].STLB.predTable[i]);
 //	}
 //printf("block sigs:\n");
