@@ -105,8 +105,8 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define HIST_MASK (uint64_t)6
 #define BRANCH_MASK (uint64_t)2040
 #define HASH_MODULUS (1<<15)//(1<<8)
-#define DEAD_THRESH 0
-#define PRED_TABLE_MAX 3
+#define DEAD_THRESH 5
+#define PRED_TABLE_MAX 6
 /* chirp */
 
 
@@ -151,7 +151,7 @@ class CACHE : public MEMORY {
 	uint64_t COND_BRANCH_HIST;
 	uint64_t UNCOND_BRANCH_HIST;
 	uint64_t LAST_SET;
-	uint64_t* predTable;
+	uint8_t* predTable;
 	uint64_t CHIRP_MISS;
     
     // constructor
@@ -207,7 +207,9 @@ class CACHE : public MEMORY {
 		LAST_SET = 18446744073709551615; //2^64 -1
 		//having 2^64 sets is unsupported
 
-		predTable = (uint64_t*)calloc(HASH_MODULUS, sizeof(uint64_t));
+		//predTable = (uint64_t*)calloc(HASH_MODULUS, sizeof(uint64_t));
+		predTable = (uint8_t*)malloc(HASH_MODULUS * sizeof(uint8_t));
+		memset(predTable, 3, HASH_MODULUS * sizeof(uint8_t));
 		/* chirp */
     };
 
@@ -286,7 +288,7 @@ class CACHE : public MEMORY {
 	void accessTLB(PACKET packet);
 	void update_pred_table(int index, bool dead);
 	uint32_t victim_entry(uint64_t set);
-	bool predict (uint32_t counter, uint32_t threshold);
+	bool predict (uint8_t counter, uint8_t threshold);
 	uint64_t update_hist(uint64_t va, uint64_t hist, uint64_t shift, uint64_t mask);
 /* chirp */
 

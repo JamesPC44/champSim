@@ -1882,7 +1882,7 @@ uint64_t CACHE::update_hist(uint64_t va, uint64_t hist, uint64_t shift, uint64_t
 	return hist;
 }
 
-bool CACHE::predict (uint32_t counter, uint32_t threshold) {
+bool CACHE::predict (uint8_t counter, uint8_t threshold) {
 	return counter > threshold;
 }
 
@@ -1939,7 +1939,7 @@ void CACHE::accessTLB(PACKET packet) {
 	int32_t way      = check_hit(&packet);
 	uint64_t sign    = (va >>2)^PATH_HIST^UNCOND_BRANCH_HIST^COND_BRANCH_HIST;
 	uint64_t index   = hash(sign) % HASH_MODULUS;
-	uint64_t cntrNew = predTable[index];
+	uint8_t cntrNew = predTable[index];
 	BLOCK* entry;
 
 	uint64_t temp;
